@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+rut.txt
+clave.txt
+downloads/
+.browser-profile/
+.pytest_cache/

@@ -1,0 +1,132 @@
+{
+  "info": {
+    "_postman_id": "c2b5c1e2-7a0d-4d95-8f42-5b5d6b2b9f41",
+    "name": "Banco Falabella API",
+    "description": "Read-only collection for Banco Falabella Cuenta Corriente scraping API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Periods",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/periods",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "periods"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Movements",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\",\n  \"period_start\": \"{{periodStart}}\",\n  \"period_end\": \"{{periodEnd}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/movements",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "movements"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Parse Test",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/parse-test",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "parse-test"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Balance",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/balance",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "balance"
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000"
+    },
+    {
+      "key": "username",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "periodStart",
+      "value": "05-2026"
+    },
+    {
+      "key": "periodEnd",
+      "value": "07-2026"
+    }
+  ]
+}

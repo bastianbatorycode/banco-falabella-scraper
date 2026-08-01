@@ -1,0 +1,6 @@
+Flask
+selenium
+pandas
+openpyxl
+xlrd
+pytest
