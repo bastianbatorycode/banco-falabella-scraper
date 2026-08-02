@@ -10,8 +10,6 @@ It exposes three endpoints:
 
 ## Input
 
-Send JSON with:
-
 - `username`
 - `password`
 - `period_start` and `period_end` for `/movements`
@@ -28,19 +26,22 @@ The API returns English JSON keys:
 
 Money values are returned as integers.
 Periods are returned as `MM-YYYY`.
+Use `/periods` first to discover valid `MM-YYYY` values for `/movements`.
 
 ## Run
 
 ```powershell
 python -m pip install -r requirements.txt
-python .\app.py
+python .\falabella_api.py
 ```
 
 The service starts on `0.0.0.0:5000`.
 
-## Notes
+## Credentials
 
-- Each request opens a fresh browser session.
-- No credentials, cookies, screenshots, or spreadsheet files are stored in the repo.
-- Selenium runs headless when the underlying browser session is configured that way.
-- The API does not expose GUI automation or banking actions beyond read-only scraping.
+The API can read credentials from request JSON or from local environment variables:
+
+- `USERNAME`
+- `PASSWORD`
+
+You can place them in a local `.env` file next to `falabella_api.py`. The file is ignored by git.

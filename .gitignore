@@ -2,6 +2,12 @@ __pycache__/
 *.pyc
 rut.txt
 clave.txt
+.env
+api.log
+api.pid
+*.log
+*.pid
+*.crdownload
 downloads/
 .browser-profile/
 .pytest_cache/

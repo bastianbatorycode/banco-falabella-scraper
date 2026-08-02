@@ -1,16 +1,7 @@
-"""Read-only Banco Falabella Cuenta Corriente prototype.
-
-This is intentionally a discovery harness, not a production scraper:
-- the user performs login and any navigation manually;
-- no credentials, OTPs, cookies, page source, screenshots, or downloaded files
-  are persisted;
-- the script only reports page structure and read-only-looking links.
-"""
+"""Browser automation and spreadsheet helpers for Banco Falabella."""
 
 from __future__ import annotations
 
-import argparse
-import json
 from numbers import Number
 import re
 import tempfile
@@ -24,6 +15,7 @@ import pandas as pd
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
@@ -33,11 +25,7 @@ LOGIN_URL = "https://www.bancofalabella.cl/BancoFalabellaChile/?STP=login"
 ACTION_DELAY_SECONDS = 1.5
 LATEST_MOVEMENTS_LABEL = "ultimos movimientos"
 CURRENT_MONTH_LABEL = "mes en curso"
-VISIBLE_WINDOW_SIZE = "1366,720"
-HEADLESS_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36"
-)
+CHROMEDRIVER_PORT = 9515
 
 
 def open_login_panel(driver: webdriver.Chrome) -> None:
@@ -131,47 +119,6 @@ def close_post_login_banner(driver: webdriver.Chrome) -> None:
     time.sleep(ACTION_DELAY_SECONDS)
 
 
-def gather_browser_fingerprint(driver: webdriver.Chrome) -> dict[str, object]:
-    return {
-        "url": driver.current_url,
-        "title": driver.title,
-        "user_agent": driver.execute_script("return navigator.userAgent"),
-        "webdriver": driver.execute_script("return navigator.webdriver"),
-        "language": driver.execute_script("return navigator.language"),
-        "languages": driver.execute_script("return navigator.languages"),
-        "plugins": driver.execute_script("return navigator.plugins.length"),
-        "screen": driver.execute_script(
-            "return [window.outerWidth, window.outerHeight, window.innerWidth, window.innerHeight]"
-        ),
-        "timezone": driver.execute_script(
-            "return Intl.DateTimeFormat().resolvedOptions().timeZone"
-        ),
-    }
-
-
-def print_fingerprint(driver: webdriver.Chrome, stage: str) -> None:
-    print(json.dumps({"fingerprint_stage": stage, **gather_browser_fingerprint(driver)}, ensure_ascii=False, indent=2))
-
-
-def apply_browser_spoofs(
-    driver: webdriver.Chrome,
-    *,
-    spoof_headless_ua: bool,
-    spoof_headless_window: bool,
-) -> None:
-    if spoof_headless_window:
-        driver.set_window_size(1920, 1080)
-    if spoof_headless_ua:
-        driver.execute_cdp_cmd(
-            "Network.setUserAgentOverride",
-            {
-                "userAgent": HEADLESS_USER_AGENT,
-                "acceptLanguage": "es-CL,es;q=0.9",
-                "platform": "Windows",
-            },
-        )
-
-
 def movement_period_select(driver: webdriver.Chrome):
     visible_selects = [
         element for element in driver.find_elements(By.CSS_SELECTOR, "select") if element.is_displayed()
@@ -249,18 +196,6 @@ def select_movement_period(driver: webdriver.Chrome, label: str) -> None:
     time.sleep(ACTION_DELAY_SECONDS)
 
 
-def choose_period_from_terminal(periods: list[dict[str, str]]) -> str:
-    print("Periodos disponibles para consultar:")
-    for index, period in enumerate(periods, start=1):
-        print(f"{index}. {period['label']}")
-    while True:
-        answer = input("Selecciona el numero del periodo: ").strip()
-        try:
-            return periods[int(answer) - 1]["label"]
-        except (ValueError, IndexError):
-            print("Opcion invalida. Escribe uno de los numeros mostrados.")
-
-
 def click_export_excel(driver: webdriver.Chrome) -> None:
     candidates = []
     for element in driver.find_elements(By.CSS_SELECTOR, "button,a,[role='button'],img"):
@@ -296,15 +231,11 @@ def wait_for_spreadsheet(download_dir: Path, timeout_seconds: int = 45) -> Path:
             for pattern in ("*.xlsx", "*.xls")
             for path in download_dir.glob(pattern)
             if not path.name.endswith(".crdownload")
-        ]
+            ]
         if files:
             return max(files, key=lambda path: path.stat().st_mtime)
         time.sleep(0.5)
     raise TimeoutException("No spreadsheet download appeared within the expected time.")
-
-
-def normalize_period_label(value: str) -> str:
-    return value.replace("/", "-")
 
 
 def parse_money(value: object) -> int | None:
@@ -402,19 +333,34 @@ def xlsx_to_json(xlsx_path: Path) -> list[dict[str, object]]:
     return best_rows
 
 
-def build_report(period_label: str, xlsx_path: Path) -> dict[str, object]:
-    return {
-        "periodo": normalize_period_label(period_label),
-        "movimientos": xlsx_to_json(xlsx_path),
-    }
+def resolve_browser_binary() -> str | None:
+    for candidate in ("chromium", "chromium-browser", "google-chrome", "chrome"):
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    return None
+
+
+def resolve_driver_binary() -> str | None:
+    for candidate in ("chromedriver",):
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    return None
 
 
 def create_driver(headless: bool) -> tuple[webdriver.Chrome, Path, Path]:
     options = Options()
     options.add_argument("--lang=es-CL")
+    browser_binary = resolve_browser_binary()
+    if browser_binary:
+        options.binary_location = browser_binary
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
     if headless:
         options.add_argument("--headless")
         options.add_argument("--window-size=1366,720")
+        options.add_argument("--remote-debugging-pipe")
         options.add_argument("--disable-gpu")
         options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36')
     else:
@@ -432,7 +378,11 @@ def create_driver(headless: bool) -> tuple[webdriver.Chrome, Path, Path]:
         },
     )
     options.add_argument(f"--user-data-dir={profile_dir}")
-    driver = webdriver.Chrome(options=options)
+    driver_binary = resolve_driver_binary()
+    if driver_binary:
+        driver = webdriver.Chrome(service=Service(driver_binary, port=CHROMEDRIVER_PORT), options=options)
+    else:
+        driver = webdriver.Chrome(options=options)
     driver.execute_cdp_cmd(
         "Page.setDownloadBehavior",
         {
@@ -441,101 +391,3 @@ def create_driver(headless: bool) -> tuple[webdriver.Chrome, Path, Path]:
         },
     )
     return driver, download_dir, profile_dir
-
-
-def export_selected_period_report(
-    driver: webdriver.Chrome,
-    download_dir: Path,
-    selected_period: str,
-) -> dict[str, object]:
-    select_movement_period(driver, selected_period)
-    click_export_excel(driver)
-    xlsx_path = wait_for_spreadsheet(download_dir)
-    return build_report(selected_period, xlsx_path)
-
-
-def run_session(
-    headless: bool,
-    rut: str,
-    password: str,
-    *,
-    diagnose_browser: bool,
-    spoof_headless_ua: bool,
-    spoof_headless_window: bool,
-) -> dict[str, object]:
-    driver, download_dir, profile_dir = create_driver(headless=headless)
-    try:
-        apply_browser_spoofs(
-            driver,
-            spoof_headless_ua=spoof_headless_ua,
-            spoof_headless_window=spoof_headless_window,
-        )
-        driver.get(LOGIN_URL)
-        time.sleep(ACTION_DELAY_SECONDS)
-        if diagnose_browser:
-            print_fingerprint(driver, "before_login")
-        if not is_authenticated(driver):
-            open_login_panel(driver)
-            submit_login(driver, rut, password)
-            close_post_login_banner(driver)
-        if diagnose_browser:
-            print_fingerprint(driver, "after_login")
-        try:
-            WebDriverWait(driver, 20).until(lambda d: is_authenticated(d))
-            print("SESION_AUTENTICADA: se reutilizo o se obtuvo una sesion valida.")
-        except TimeoutException:
-            print("LOGIN_INCIERTO: no se confirmo una sesion privada.")
-            if diagnose_browser:
-                debug_dir = Path(tempfile.mkdtemp(prefix="banco-falabella-diagnose-"))
-                screenshot_path = debug_dir / "after-login.png"
-                html_path = debug_dir / "after-login.html"
-                driver.save_screenshot(str(screenshot_path))
-                html_path.write_text(driver.page_source, encoding="utf-8", errors="replace")
-                print(f"DEBUG_SCREENSHOT: {screenshot_path}")
-                print(f"DEBUG_HTML: {html_path}")
-        print(f"RUTA_ACTUAL: {driver.current_url}")
-        time.sleep(ACTION_DELAY_SECONDS)
-        open_current_account(driver)
-        periods = get_movement_periods(driver)
-        selected_period = choose_period_from_terminal(periods)
-        print(f"Periodo seleccionado: {selected_period}")
-        report = export_selected_period_report(driver, download_dir, selected_period)
-        print(json.dumps(report, ensure_ascii=False, indent=2))
-        return report
-    except WebDriverException as exc:
-        print(f"Error de Selenium/WebDriver: {exc.__class__.__name__}: {exc}")
-        raise
-    finally:
-        driver.quit()
-        try:
-            shutil.rmtree(download_dir, ignore_errors=True)
-        except OSError:
-            pass
-        shutil.rmtree(profile_dir, ignore_errors=True)
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Banco Falabella read-only movements prototype")
-    parser.add_argument("--headless", action="store_true", help="Run Chrome headless")
-    parser.add_argument("--rut", required=True, help="RUT for login")
-    parser.add_argument("--password", required=True, help="Internet password for login")
-    parser.add_argument("--diagnose-browser", action="store_true", help="Print browser fingerprint before and after login")
-    parser.add_argument("--spoof-headless-ua", action="store_true", help="Use a headless-like user agent in visible mode")
-    parser.add_argument("--spoof-headless-window", action="store_true", help="Use a headless-like window size in visible mode")
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = parse_args()
-    run_session(
-        headless=args.headless,
-        rut=args.rut,
-        password=args.password,
-        diagnose_browser=args.diagnose_browser,
-        spoof_headless_ua=args.spoof_headless_ua,
-        spoof_headless_window=args.spoof_headless_window,
-    )
-
-
-if __name__ == "__main__":
-    main()

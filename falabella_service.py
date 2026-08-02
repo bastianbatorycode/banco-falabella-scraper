@@ -5,11 +5,17 @@ import shutil
 from datetime import date
 from pathlib import Path
 
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.common.by import By
 
-import prototype
-from prototype import ascii_fold
+from falabella_browser import ascii_fold, create_driver, xlsx_to_json
+from falabella_pages.home import HomePage
+from falabella_pages.login import LoginPage
+from falabella_pages.movements import MovementsPage
+
+
+class TransportError(RuntimeError):
+    pass
 
 
 def expand_period_range(period_start: str, period_end: str) -> list[str]:
@@ -58,30 +64,36 @@ def normalize_period_choice_label(value: str) -> str:
 
 
 def create_session(headless: bool = True):
-    return prototype.create_driver(headless=headless)
+    try:
+        return create_driver(headless=headless)
+    except (PermissionError, OSError, RuntimeError, WebDriverException) as exc:
+        raise TransportError(f"Unable to start browser session: {exc}") from exc
 
 
 def login_and_open_account(driver, username: str, password: str) -> None:
-    driver.get(prototype.LOGIN_URL)
-    if not prototype.is_authenticated(driver):
-        prototype.open_login_panel(driver)
-        prototype.submit_login(driver, username, password)
-        prototype.close_post_login_banner(driver)
+    login_page = LoginPage(driver)
+    home_page = HomePage(driver)
+    login_page.open()
+    if not login_page.is_authenticated():
+        login_page.open_account_menu()
+        login_page.submit_login(username, password)
+        login_page.close_post_login_banner()
     try:
-        prototype.WebDriverWait(driver, 20).until(lambda d: prototype.is_authenticated(d))
+        login_page.wait.until(lambda d: login_page.is_authenticated())
     except TimeoutException as exc:
         raise RuntimeError(f"Authentication failed: {driver.current_url}") from exc
-    prototype.open_current_account(driver)
+    home_page.open_current_account()
 
 
 def login_and_stay_on_home(driver, username: str, password: str) -> None:
-    driver.get(prototype.LOGIN_URL)
-    if not prototype.is_authenticated(driver):
-        prototype.open_login_panel(driver)
-        prototype.submit_login(driver, username, password)
-        prototype.close_post_login_banner(driver)
+    login_page = LoginPage(driver)
+    login_page.open()
+    if not login_page.is_authenticated():
+        login_page.open_account_menu()
+        login_page.submit_login(username, password)
+        login_page.close_post_login_banner()
     try:
-        prototype.WebDriverWait(driver, 20).until(lambda d: prototype.is_authenticated(d))
+        login_page.wait.until(lambda d: login_page.is_authenticated())
     except TimeoutException as exc:
         raise RuntimeError(f"Authentication failed: {driver.current_url}") from exc
 
@@ -90,7 +102,7 @@ def list_periods_for_credentials(username: str, password: str, headless: bool = 
     driver, download_dir, profile_dir = create_session(headless=headless)
     try:
         login_and_open_account(driver, username, password)
-        periods = prototype.get_movement_periods(driver)
+        periods = MovementsPage(driver).get_movement_periods()
         return [normalize_period_choice_label(period["label"]) for period in periods]
     finally:
         driver.quit()
@@ -100,9 +112,10 @@ def list_periods_for_credentials(username: str, password: str, headless: bool = 
 
 def collect_movements_for_period(driver, download_dir: Path, period_label: str) -> list[dict[str, object]]:
     bank_label = to_bank_period_label(period_label)
-    prototype.select_movement_period(driver, bank_label)
-    prototype.click_export_excel(driver)
-    xlsx_path = prototype.wait_for_spreadsheet(download_dir)
+    movements_page = MovementsPage(driver)
+    movements_page.select_movement_period(bank_label)
+    movements_page.click_export_excel()
+    xlsx_path = movements_page.wait_for_spreadsheet(download_dir)
     report = read_spreadsheet_rows(xlsx_path)
     try:
         xlsx_path.unlink()
@@ -143,34 +156,11 @@ def collect_movements_for_range(
 
 
 def find_available_balance(driver) -> int:
-    anchors = driver.find_elements(By.XPATH, "//span[normalize-space()='Saldo disponible']")
-    if not anchors:
-        anchors = driver.find_elements(
-            By.XPATH,
-            "//*[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÑ', 'abcdefghijklmnopqrstuvwxyzaeiouñ'), 'saldo disponible')]",
-        )
-    for anchor in anchors:
-        sibling_candidates = []
-        try:
-            sibling_candidates.append(anchor.find_element(By.XPATH, "./preceding-sibling::*[1]"))
-        except Exception:
-            pass
-        try:
-            sibling_candidates.append(anchor.find_element(By.XPATH, "./following-sibling::*[1]"))
-        except Exception:
-            pass
-        for sibling in sibling_candidates:
-            if "green-text-bold" not in (sibling.get_attribute("class") or ""):
-                continue
-            text = " ".join((sibling.text or "").split())
-            match = re.search(r"\$?\s*([\d.]+)", text)
-            if match:
-                return int(match.group(1).replace(".", ""))
-    raise RuntimeError("Available balance element not found")
+    return HomePage(driver).find_available_balance()
 
 
 def read_spreadsheet_rows(xlsx_path: Path) -> list[dict[str, object]]:
-    report = prototype.xlsx_to_json(xlsx_path)
+    report = xlsx_to_json(xlsx_path)
     rows: list[dict[str, object]] = []
     for row in report:
         rows.append(
@@ -189,25 +179,15 @@ def get_available_balance(username: str, password: str, headless: bool = True) -
     driver, download_dir, profile_dir = create_session(headless=headless)
     try:
         login_and_stay_on_home(driver, username, password)
-        return find_available_balance(driver)
+        home_page = HomePage(driver)
+        home_page.wait.until(
+            lambda d: d.find_elements(
+                By.XPATH,
+                "//*[contains(normalize-space(.), 'Saldo disponible')]",
+            )
+        )
+        return home_page.find_available_balance()
     finally:
         driver.quit()
         shutil.rmtree(download_dir, ignore_errors=True)
         shutil.rmtree(profile_dir, ignore_errors=True)
-
-
-def parse_test_spreadsheets(paths: list[Path]) -> list[dict[str, object]]:
-    if len(paths) < 2:
-        raise ValueError("At least two test spreadsheets are required")
-
-    parsed_files: list[dict[str, object]] = []
-    for path in paths:
-        movements = read_spreadsheet_rows(path)
-        parsed_files.append(
-            {
-                "file": path.name,
-                "movement_count": len(movements),
-                "movements": movements,
-            }
-        )
-    return parsed_files

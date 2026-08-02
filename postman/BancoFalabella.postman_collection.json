@@ -57,31 +57,6 @@
       }
     },
     {
-      "name": "Parse Test",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/parse-test",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "parse-test"
-          ]
-        }
-      }
-    },
-    {
       "name": "Balance",
       "request": {
         "method": "POST",
