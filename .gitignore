@@ -11,3 +11,4 @@ api.pid
 downloads/
 .browser-profile/
 .pytest_cache/
+data/

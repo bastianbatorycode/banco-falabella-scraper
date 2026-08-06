@@ -21,7 +21,7 @@ source .venv/bin/activate
 If you want environment-backed credentials:
 
 ```bash
-printf 'USERNAME=17944027K\nPASSWORD=314159\n' > .env
+printf 'USERNAME=tu_rut\nPASSWORD=tu_password\n' > .env
 ```
 
 Run the test suite:
