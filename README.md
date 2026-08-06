@@ -1,211 +1,116 @@
-\# Banco Falabella API
+# Banco Falabella API
 
 API REST de solo lectura para consultar una Cuenta Corriente de Banco Falabella.
 
 Permite:
 
-\- Obtener los períodos disponibles.  
-\- Consultar movimientos entre dos períodos.  
-\- Consultar el saldo disponible.
+- Obtener los periodos disponibles.
+- Consultar movimientos entre dos periodos.
+- Consultar el saldo disponible.
 
-\#\# URL base
+## URL base
 
-\`\`\`text  
-http://localhost:5000  
-\`\`\`
+```text
+http://localhost:5000
+```
 
 Desde otro equipo de la red:
 
-\`\`\`text  
-http://IP\_DEL\_SERVIDOR:5000  
-\`\`\`
+```text
+http://IP_DEL_SERVIDOR:5000
+```
 
 Todas las solicitudes deben usar:
 
-\`\`\`http  
-Content-Type: application/json  
-\`\`\`
+```http
+Content-Type: application/json
+```
 
-\#\# Credenciales
+## Credenciales
 
 Las credenciales se leen exclusivamente desde variables de entorno:
 
-\`\`\`env  
-USERNAME=TU\_USUARIO  
-PASSWORD=TU\_CONTRASEÑA  
-\`\`\`
+```env
+USERNAME=TU_USUARIO
+PASSWORD=TU_CONTRASENA
+```
 
-Puedes guardarlas en un archivo \`.env\` ubicado junto a \`falabella\_api.py\`.
-
-\`\`\`text  
-banco-falabella/  
-├── falabella\_api.py  
-├── requirements.txt  
-└── .env  
-\`\`\`
+Puedes guardarlas en un archivo `.env` ubicado junto a `falabella_api.py`.
 
 Las credenciales no deben enviarse dentro de las solicitudes HTTP.
 
-\#\# Endpoints
+## Endpoints
 
-\#\#\# POST /periods
+### POST /periods
 
-Obtiene los períodos disponibles para consultar movimientos.
+Obtiene los periodos disponibles para consultar movimientos.
 
-\#\#\#\# Request
+#### Request
 
-\`\`\`json  
-{}  
-\`\`\`
+```json
+{}
+```
 
-\#\#\#\# Respuesta
+#### Respuesta
 
-\`\`\`json  
-{  
-  "periods": \[  
-    "08-2026",  
-    "07-2026",  
-    "06-2026"  
-  \]  
-}  
-\`\`\`
+```json
+{"periods": ["08-2026", "07-2026", "06-2026"]}
+```
 
-Los períodos usan el formato \`MM-YYYY\`.
+Los periodos usan el formato `MM-YYYY`.
 
-\#\#\#\# PowerShell
+### POST /movements
 
-\`\`\`powershell  
-Invoke-RestMethod \`  
-    \-Method Post \`  
-    \-Uri "http://localhost:5000/periods" \`  
-    \-ContentType "application/json" \`  
-    \-Body "{}"  
-\`\`\`
+Obtiene los movimientos comprendidos entre dos periodos validos.
 
-\#\#\#\# curl
+Consulta primero `/periods` para obtener los valores aceptados.
 
-\`\`\`bash  
-curl \-X POST http://localhost:5000/periods \\  
-  \-H "Content-Type: application/json" \\  
-  \-d '{}'  
-\`\`\`
+#### Request
 
-\#\#\# POST /movements
+```json
+{"period_start": "07-2026", "period_end": "08-2026"}
+```
 
-Obtiene los movimientos comprendidos entre dos períodos válidos.
-
-Consulta primero \`/periods\` para obtener los valores aceptados.
-
-\#\#\#\# Request
-
-\`\`\`json  
-{  
-  "period\_start": "07-2026",  
-  "period\_end": "08-2026"  
-}  
-\`\`\`
-
-| Campo | Tipo | Obligatorio | Descripción |  
-|---|---|---|---|  
-| \`period\_start\` | string | Sí | Período inicial en formato \`MM-YYYY\`. |  
-| \`period\_end\` | string | Sí | Período final en formato \`MM-YYYY\`. |
-
-\#\#\#\# Respuesta
-
-\`\`\`json  
-{  
-  "period\_start": "07-2026",  
-  "period\_end": "08-2026",  
-  "movements": \[  
-    {  
-      "description": "Ejemplo de movimiento",  
-      "amount": \-15990  
-    }  
-  \]  
-}  
-\`\`\`
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `period_start` | string | Si | Periodo inicial en formato `MM-YYYY`. |
+| `period_end` | string | Si | Periodo final en formato `MM-YYYY`. |
 
 Los valores monetarios se devuelven como enteros, sin decimales ni separadores de miles.
 
-\#\#\#\# PowerShell
-
-\`\`\`powershell  
-$body \= @{  
-    period\_start \= "07-2026"  
-    period\_end   \= "08-2026"  
-} | ConvertTo-Json
-
-Invoke-RestMethod \`  
-    \-Method Post \`  
-    \-Uri "http://localhost:5000/movements" \`  
-    \-ContentType "application/json" \`  
-    \-Body $body  
-\`\`\`
-
-\#\#\#\# curl
-
-\`\`\`bash  
-curl \-X POST http://localhost:5000/movements \\  
-  \-H "Content-Type: application/json" \\  
-  \-d '{  
-    "period\_start": "07-2026",  
-    "period\_end": "08-2026"  
-  }'  
-\`\`\`
-
-\#\#\# POST /balance
+### POST /balance
 
 Obtiene el saldo disponible actual.
 
-\#\#\#\# Request
+#### Request
 
-\`\`\`json  
-{}  
-\`\`\`
+```json
+{}
+```
 
-\#\#\#\# Respuesta
+#### Respuesta
 
-\`\`\`json  
-{  
-  "available\_balance": 250000  
-}  
-\`\`\`
+```json
+{"available_balance": 250000}
+```
 
-\#\#\#\# PowerShell
+## Resumen
 
-\`\`\`powershell  
-Invoke-RestMethod \`  
-    \-Method Post \`  
-    \-Uri "http://localhost:5000/balance" \`  
-    \-ContentType "application/json" \`  
-    \-Body "{}"  
-\`\`\`
+| Metodo | Endpoint | Request |
+|---|---|---|
+| `POST` | `/periods` | `{}` |
+| `POST` | `/movements` | `period_start`, `period_end` |
+| `POST` | `/balance` | `{}` |
 
-\#\#\#\# curl
+## Instalacion
 
-\`\`\`bash  
-curl \-X POST http://localhost:5000/balance \\  
-  \-H "Content-Type: application/json" \\  
-  \-d '{}'  
-\`\`\`
-
-\#\# Resumen
-
-| Método | Endpoint | Request |  
-|---|---|---|  
-| \`POST\` | \`/periods\` | \`{}\` |  
-| \`POST\` | \`/movements\` | \`period\_start\`, \`period\_end\` |  
-| \`POST\` | \`/balance\` | \`{}\` |
-
-\#\# Instalación
-
-\`\`\`powershell  
-python \-m pip install \-r requirements.txt  
-python .\\falabella\_api.py  
-\`\`\`
+```powershell
+python -m pip install -r requirements.txt
+python falabella_api.py
+```
 
 El servicio escucha en:
 
-\`\`\`text  
-0.0.0.0:5000  
-\`\`\`
+```text
+0.0.0.0:5000
+```
